@@ -1,0 +1,19 @@
+{
+    "auth": {
+        "google_api_key": "YOUR_GOOGLE_API_KEY",
+        "google_cx": "YOUR_GOOGLE_CX",
+        "brave_api_key": "YOUR_BRAVE_API_KEY"
+    },
+    "intervals": {
+        "download_minutes": 60,
+        "rotate_minutes": 15
+    },
+    "system": {
+        "cleanup_days_old": 7
+    },
+    "paths": {
+        "download_dir": "DownloadedWallpapers",
+        "keywords_file": "search_keywords.txt"
+    },
+    "api_preference": "google"
+}
