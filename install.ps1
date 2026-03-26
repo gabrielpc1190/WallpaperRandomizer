@@ -52,7 +52,11 @@ Copy-Item -Path ".\config.json" -Destination "$InstallDir\config.json" -Force -E
 Copy-Item -Path ".\search_keywords.txt" -Destination "$InstallDir\search_keywords.txt" -Force -ErrorAction SilentlyContinue
 Copy-Item -Path ".\W.ico" -Destination "$InstallDir\W.ico" -Force -ErrorAction SilentlyContinue
 
-# 4. Crear acceso directo en el Inicio de Windows
+# 4. Desbloquear archivos descargados de Internet (evita bloqueo de SmartScreen)
+Write-Host "[*] Desbloqueando archivos para evitar bloqueo de SmartScreen..."
+Get-ChildItem -Path $InstallDir -Recurse | Unblock-File -ErrorAction SilentlyContinue
+
+# 5. Crear acceso directo en el Inicio de Windows
 Write-Host "[*] Creando acceso directo en el Inicio de Windows..."
 $WshShell = New-Object -comObject WScript.Shell
 $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
@@ -72,8 +76,14 @@ Write-Host ""
 Write-Host "Deseas iniciar el programa ahora mismo? (S/N)" -NoNewline
 $resp = Read-Host
 if ($resp -eq 'S' -or $resp -eq 's') {
-    Start-Process -FilePath $ExeTarget -WorkingDirectory $InstallDir
-    Write-Host "Iniciando..." -ForegroundColor Green
+    try {
+        Start-Process -FilePath $ExeTarget -WorkingDirectory $InstallDir
+        Write-Host "Iniciando..." -ForegroundColor Green
+    } catch {
+        Write-Host "[!] Windows bloqueo la ejecucion. Intenta abrir main.exe directamente desde:" -ForegroundColor Yellow
+        Write-Host "    $InstallDir" -ForegroundColor Yellow
+        Write-Host "    Y selecciona 'Ejecutar de todas formas' en el dialogo de SmartScreen." -ForegroundColor Yellow
+    }
 } else {
     Write-Host "Puedes iniciarlo reiniciando tu PC o abriendolo desde la carpeta de instalacion."
 }
