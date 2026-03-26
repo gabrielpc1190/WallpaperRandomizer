@@ -13,11 +13,11 @@ class UITray:
         return pystray.Menu(
             pystray.MenuItem("Next Wallpaper", self.callbacks['next']),
             pystray.MenuItem("Previous Wallpaper", self.callbacks['prev']),
-            pystray.Menu.Separator(),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem("Force Download Now", self.callbacks['download']),
             pystray.MenuItem("Edit Keywords", self.callbacks['edit_keywords']),
             pystray.MenuItem("Open Download Folder", self.callbacks['open_folder']),
-            pystray.Menu.Separator(),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem("Exit", self.callbacks['exit'])
         )
 
