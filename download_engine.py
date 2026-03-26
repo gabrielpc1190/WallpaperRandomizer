@@ -9,43 +9,45 @@ class DownloadEngine:
     def __init__(self, config_manager):
         self.config = config_manager
         self.download_dir = self.config.get('paths.download_dir', 'DownloadedWallpapers')
-        self.keywords_file = self.config.get('paths.keywords_file', 'search_keywords.txt')
         self._ensure_paths()
 
     def _ensure_paths(self):
+        self.download_dir = self.config.get('paths.download_dir', 'DownloadedWallpapers')
         if not os.path.exists(self.download_dir):
-            os.makedirs(self.download_dir)
-        if not os.path.exists(self.keywords_file):
-            with open(self.keywords_file, 'w') as f:
-                f.write("Cyberpunk City,Nature Landscape 4K,Abstract Art,Space Nebula")
+            try:
+                os.makedirs(self.download_dir)
+            except Exception:
+                pass
 
     def _get_random_keyword(self):
-        try:
-            with open(self.keywords_file, 'r') as f:
-                content = f.read()
-                keywords = [k.strip() for k in content.split(',') if k.strip()]
-                return random.choice(keywords) if keywords else "Wallpaper"
-        except Exception:
-            return "Wallpaper"
+        keywords = self.config.get_keywords_list()
+        return random.choice(keywords) if keywords else "Wallpaper"
 
     def download_new(self):
+        self._ensure_paths()
         keyword = self._get_random_keyword()
         api_pref = self.config.get('api_preference', 'google')
         
-        image_url = None
+        result = {'success': False, 'message': 'Unknown error', 'filename': ''}
+        
         if api_pref == 'google':
-            image_url = self._search_google(keyword)
+            result = self._search_google(keyword)
         elif api_pref == 'brave':
-            image_url = self._search_brave(keyword)
+            result = self._search_brave(keyword)
+        else:
+            result['message'] = f"API preferida '{api_pref}' no soportada."
 
-        if image_url:
-            return self._download_image(image_url, keyword)
-        return False
+        if result['success'] and 'url' in result:
+            return self._download_image(result['url'], keyword)
+            
+        return result
 
     def _search_google(self, query):
-        api_key = self.config.get('auth.google_api_key')
-        cx = self.config.get('auth.google_cx')
-        if not api_key or not cx: return None
+        api_key = self.config.get('auth.google_api_key', '').strip()
+        cx = self.config.get('auth.google_cx', '').strip()
+        
+        if not api_key or not cx or api_key.startswith('YOUR_'): 
+            return {'success': False, 'message': 'API Key o CX de Google no configurado.'}
         
         url = "https://www.googleapis.com/customsearch/v1"
         params = {
@@ -57,51 +59,57 @@ class DownloadEngine:
             'num': 10
         }
         try:
-            r = requests.get(url, params=params)
+            r = requests.get(url, params=params, timeout=10)
             data = r.json()
+            if r.status_code != 200:
+                msg = data.get('error', {}).get('message', 'Error desconocido en Google')
+                return {'success': False, 'message': f"Error de Google: {msg}"}
+                
             items = data.get('items', [])
             if items:
-                return random.choice(items)['link']
+                return {'success': True, 'url': random.choice(items)['link']}
+            else:
+                return {'success': False, 'message': f"No se encontraron imágenes para '{query}'."}
         except Exception as e:
-            print(f"Google Search Error: {e}")
-        return None
+            return {'success': False, 'message': f"Fallo de red: {e}"}
 
     def _search_brave(self, query):
-        api_key = self.config.get('auth.brave_api_key')
-        if not api_key: return None
+        api_key = self.config.get('auth.brave_api_key', '').strip()
+        if not api_key or api_key.startswith('YOUR_'): 
+            return {'success': False, 'message': 'API Key de Brave no configurada.'}
         
         url = "https://api.search.brave.com/res/v1/images/search"
         headers = {'Accept': 'application/json', 'X-Subscription-Token': api_key}
         params = {'q': query, 'count': 20}
         try:
-            r = requests.get(url, headers=headers, params=params)
+            r = requests.get(url, headers=headers, params=params, timeout=10)
             data = r.json()
+            if r.status_code != 200:
+                return {'success': False, 'message': f"Error de Brave: {r.status_code}"}
+                
             results = data.get('results', [])
             if results:
-                return random.choice(results)['properties']['url']
+                return {'success': True, 'url': random.choice(results)['properties']['url']}
+            else:
+                return {'success': False, 'message': f"No se encontraron imágenes para '{query}'."}
         except Exception as e:
-            print(f"Brave Search Error: {e}")
-        return None
+            return {'success': False, 'message': f"Fallo de red: {e}"}
 
     def _download_image(self, url, keyword):
         try:
-            # Fake user agent to avoid basic blocks
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
             r = requests.get(url, headers=headers, stream=True, timeout=15)
             if r.status_code == 200:
-                # Check if it actually returned an image
                 content_type = r.headers.get('Content-Type', '')
                 if not content_type.startswith('image/'):
-                    print(f"URL did not point to an image. Content-Type: {content_type}")
-                    return False
+                    return {'success': False, 'message': f"La URL entregó {content_type} en lugar de una imagen."}
                     
                 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                 clean_keyword = "".join(x for x in keyword if x.isalnum() or x in " -_").strip()
                 ext = os.path.splitext(urlparse(url).path)[1].lower()
                 
-                # Enforce valid extensions based on ctypes requirements
                 if ext not in ['.jpg', '.jpeg', '.png', '.bmp']: 
                     ext = ".jpg" 
                 
@@ -111,12 +119,13 @@ class DownloadEngine:
                 with open(filepath, 'wb') as f:
                     for chunk in r.iter_content(1024):
                         f.write(chunk)
-                print(f"Downloaded: {filename}")
+                
                 self.cleanup_old_files()
-                return filepath
+                return {'success': True, 'message': 'Descarga completada', 'filename': filename, 'path': filepath}
+            else:
+                return {'success': False, 'message': f"El servidor de la imagen rechazó la conexión (HTTP {r.status_code})."}
         except Exception as e:
-            print(f"Download Error: {e}")
-        return False
+            return {'success': False, 'message': f"Error al descargar imagen: {e}"}
 
     def cleanup_old_files(self):
         days = self.config.get('system.cleanup_days_old', 7)
@@ -127,6 +136,5 @@ class DownloadEngine:
                 if os.stat(path).st_mtime < now - (days * 86400):
                     try:
                         os.remove(path)
-                        print(f"Cleaned up: {f}")
-                    except Exception as e:
-                        print(f"Cleanup Error: {e}")
+                    except Exception:
+                        pass
