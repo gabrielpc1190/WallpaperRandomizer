@@ -48,9 +48,20 @@ if (-not (Test-Path $InstallDir)) {
 # 3. Copiar archivos necesarios
 Write-Host "[*] Copiando archivos del programa..."
 Copy-Item -Path $ExeSource -Destination $ExeTarget -Force
-Copy-Item -Path ".\config.json" -Destination "$InstallDir\config.json" -Force -ErrorAction SilentlyContinue
-Copy-Item -Path ".\search_keywords.txt" -Destination "$InstallDir\search_keywords.txt" -Force -ErrorAction SilentlyContinue
 Copy-Item -Path ".\W.ico" -Destination "$InstallDir\W.ico" -Force -ErrorAction SilentlyContinue
+
+# Preservar configuraciones previas (Evitar sobrescribir si el usuario esta actualizando)
+if (-not (Test-Path "$InstallDir\config.json")) {
+    Copy-Item -Path ".\config.json" -Destination "$InstallDir\config.json" -ErrorAction SilentlyContinue
+} else {
+    Write-Host " -> Configuracion anterior preservada (config.json)" -ForegroundColor DarkGray
+}
+
+if (-not (Test-Path "$InstallDir\search_keywords.txt")) {
+    Copy-Item -Path ".\search_keywords.txt" -Destination "$InstallDir\search_keywords.txt" -ErrorAction SilentlyContinue
+} else {
+    Write-Host " -> Palabras clave anteriores preservadas (search_keywords.txt)" -ForegroundColor DarkGray
+}
 
 # 4. Desbloquear archivos descargados de Internet (evita bloqueo de SmartScreen)
 Write-Host "[*] Desbloqueando archivos para evitar bloqueo de SmartScreen..."
