@@ -66,10 +66,24 @@ class DownloadEngine:
                 return {'success': False, 'message': f"Error de Google: {msg}"}
                 
             items = data.get('items', [])
-            if items:
-                return {'success': True, 'url': random.choice(items)['link']}
+            
+            # Filter minimum 1920x1080
+            high_res_items = []
+            for item in items:
+                img_info = item.get('image', {})
+                w = img_info.get('width', 0)
+                h = img_info.get('height', 0)
+                if w >= 1920 and h >= 1080:
+                    high_res_items.append(item)
+                    
+            # Fallback a menos exigente si no hay 1080p puro
+            if not high_res_items:
+                high_res_items = [i for i in items if i.get('image', {}).get('width', 0) >= 1280]
+
+            if high_res_items:
+                return {'success': True, 'url': random.choice(high_res_items)['link']}
             else:
-                return {'success': False, 'message': f"No se encontraron imágenes para '{query}'."}
+                return {'success': False, 'message': f"No se encontraron imágenes en Full HD para '{query}'."}
         except Exception as e:
             return {'success': False, 'message': f"Fallo de red: {e}"}
 
@@ -88,10 +102,24 @@ class DownloadEngine:
                 return {'success': False, 'message': f"Error de Brave: {r.status_code}"}
                 
             results = data.get('results', [])
-            if results:
-                return {'success': True, 'url': random.choice(results)['properties']['url']}
+            
+            # Filter minimum 1920x1080
+            high_res_results = []
+            for res in results:
+                props = res.get('properties', {})
+                w = props.get('width', 0)
+                h = props.get('height', 0)
+                if w >= 1920 and h >= 1080:
+                    high_res_results.append(res)
+                    
+            # Fallback
+            if not high_res_results:
+                high_res_results = [r for r in results if r.get('properties', {}).get('width', 0) >= 1280]
+
+            if high_res_results:
+                return {'success': True, 'url': random.choice(high_res_results)['properties']['url']}
             else:
-                return {'success': False, 'message': f"No se encontraron imágenes para '{query}'."}
+                return {'success': False, 'message': f"No se encontraron imágenes en Full HD para '{query}'."}
         except Exception as e:
             return {'success': False, 'message': f"Fallo de red: {e}"}
 
