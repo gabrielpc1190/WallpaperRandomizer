@@ -97,8 +97,9 @@ class DownloadEngine:
 
     def _download_image(self, url, keyword):
         try:
+            # Fake latest Brave browser user agent
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
             }
             r = requests.get(url, headers=headers, stream=True, timeout=15)
             if r.status_code == 200:

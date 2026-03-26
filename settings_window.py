@@ -85,17 +85,17 @@ class SettingsWindow:
 
         ttk.Label(tab_api, text="Google Custom Search API Key:").grid(row=0, column=0, sticky=tk.W, pady=5)
         self.google_key_var = tk.StringVar(value=self._clean_placeholder(self.config.get('auth.google_api_key', '')))
-        ttk.Entry(tab_api, textvariable=self.google_key_var, width=45).grid(row=1, column=0, columnspan=2, sticky=tk.W)
+        ttk.Entry(tab_api, textvariable=self.google_key_var, width=45).grid(row=1, column=0, sticky=tk.W)
 
         ttk.Label(tab_api, text="Google Custom Search CX (ID del buscador):").grid(row=2, column=0, sticky=tk.W, pady=(10, 5))
         self.google_cx_var = tk.StringVar(value=self._clean_placeholder(self.config.get('auth.google_cx', '')))
-        ttk.Entry(tab_api, textvariable=self.google_cx_var, width=45).grid(row=3, column=0, columnspan=2, sticky=tk.W)
+        ttk.Entry(tab_api, textvariable=self.google_cx_var, width=45).grid(row=3, column=0, sticky=tk.W)
+        ttk.Button(tab_api, text="Verificar Google", command=lambda: self._verify_api("google")).grid(row=3, column=1, padx=10, sticky=tk.W)
 
         ttk.Label(tab_api, text="Brave Search API Key:").grid(row=4, column=0, sticky=tk.W, pady=(10, 5))
         self.brave_key_var = tk.StringVar(value=self._clean_placeholder(self.config.get('auth.brave_api_key', '')))
-        ttk.Entry(tab_api, textvariable=self.brave_key_var, width=45).grid(row=5, column=0, columnspan=2, sticky=tk.W)
-
-        ttk.Button(tab_api, text="Verificar conexión", command=self._verify_api).grid(row=6, column=0, pady=15, sticky=tk.W)
+        ttk.Entry(tab_api, textvariable=self.brave_key_var, width=45).grid(row=5, column=0, sticky=tk.W)
+        ttk.Button(tab_api, text="Verificar Brave", command=lambda: self._verify_api("brave")).grid(row=5, column=1, padx=10, sticky=tk.W)
 
         # === Tab 3: Palabras Clave ===
         tab_keywords = ttk.Frame(notebook, padding=15)
@@ -179,37 +179,36 @@ class SettingsWindow:
             self.download_dir_var.set(folder)
             self.path_label.config(text=f"Ruta completa: {os.path.abspath(folder)}")
 
-    def _verify_api(self):
-        """Test API connectivity with a quick query."""
-        pref = self.api_pref_var.get()
+    def _verify_api(self, pref):
+        """Test API connectivity with a quick query for a specific engine."""
         try:
             if pref == "google":
                 key = self.google_key_var.get().strip()
                 cx = self.google_cx_var.get().strip()
                 if not key or not cx:
-                    messagebox.showwarning("Verificación", "Ingresa la API Key y el CX de Google primero.")
+                    messagebox.showwarning("Verificación Google", "Ingresa la API Key y el CX de Google primero.")
                     return
                 r = requests.get("https://www.googleapis.com/customsearch/v1",
                                  params={'q': 'test', 'cx': cx, 'key': key, 'searchType': 'image', 'num': 1},
                                  timeout=10)
                 if r.status_code == 200:
-                    messagebox.showinfo("Verificación", "✅ Conexión con Google exitosa.")
+                    messagebox.showinfo("Verificación Google", "✅ Conexión con Google exitosa.")
                 else:
                     data = r.json()
                     msg = data.get('error', {}).get('message', r.text[:200])
-                    messagebox.showerror("Verificación", f"❌ Error de Google ({r.status_code}):\n{msg}")
+                    messagebox.showerror("Verificación Google", f"❌ Error de Google ({r.status_code}):\n{msg}")
             elif pref == "brave":
                 key = self.brave_key_var.get().strip()
                 if not key:
-                    messagebox.showwarning("Verificación", "Ingresa la API Key de Brave primero.")
+                    messagebox.showwarning("Verificación Brave", "Ingresa la API Key de Brave primero.")
                     return
                 r = requests.get("https://api.search.brave.com/res/v1/images/search",
                                  headers={'Accept': 'application/json', 'X-Subscription-Token': key},
                                  params={'q': 'test', 'count': 1}, timeout=10)
                 if r.status_code == 200:
-                    messagebox.showinfo("Verificación", "✅ Conexión con Brave exitosa.")
+                    messagebox.showinfo("Verificación Brave", "✅ Conexión con Brave exitosa.")
                 else:
-                    messagebox.showerror("Verificación", f"❌ Error de Brave ({r.status_code}):\n{r.text[:200]}")
+                    messagebox.showerror("Verificación Brave", f"❌ Error de Brave ({r.status_code}):\n{r.text[:200]}")
         except requests.exceptions.ConnectionError:
             messagebox.showerror("Verificación", "❌ Sin conexión a Internet.")
         except Exception as e:
