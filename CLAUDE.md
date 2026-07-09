@@ -6,6 +6,7 @@ production: false
 status: active
 stack: [python]
 repo: "git@github.com:gabrielpc1190/WallpaperRandomizer.git"
+tags: [personal]
 ---
 
 # CLAUDE.md
