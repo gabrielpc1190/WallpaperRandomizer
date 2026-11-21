@@ -8,6 +8,7 @@ from wallpaper_engine import WallpaperEngine
 from hotkey_manager import HotkeyManager
 from ui_tray import UITray
 from settings_window import SettingsWindow
+import startup_toast
 
 
 class Application:
@@ -107,17 +108,22 @@ class Application:
 
     def start(self):
         # 1. Onboarding / Wizard si no hay API Keys
-        if self.config.is_first_run():
+        first_run = self.config.is_first_run()
+        if first_run:
             self._show_initial_wizard()
 
         # 2. Iniciar Hilos de Fondo
         threading.Thread(target=self.download_loop, daemon=True).start()
         threading.Thread(target=self.rotation_loop, daemon=True).start()
-        
+
         if os.name == 'nt':
             self.hotkeys.start()
-            
-        # 3. Iniciar UI Tray (Este método bloquea y debe ser el último)
+
+        # 3. Toast de arranque (omitido tras el wizard para no apilar ventanas)
+        if not first_run:
+            startup_toast.show("Se inició correctamente.")
+
+        # 4. Iniciar UI Tray (Este método bloquea y debe ser el último)
         self.ui.run()
 
 if __name__ == "__main__":

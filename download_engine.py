@@ -1,6 +1,7 @@
 import os
 import random
 import time
+import hashlib
 import requests
 import datetime
 from urllib.parse import urlparse
@@ -27,20 +28,58 @@ class DownloadEngine:
         self._ensure_paths()
         keyword = self._get_random_keyword()
         api_pref = self.config.get('api_preference', 'google')
-        
-        result = {'success': False, 'message': 'Unknown error', 'filename': ''}
-        
-        if api_pref == 'google':
-            result = self._search_google(keyword)
-        elif api_pref == 'brave':
-            result = self._search_brave(keyword)
-        else:
-            result['message'] = f"API preferida '{api_pref}' no soportada."
 
-        if result['success'] and 'url' in result:
-            return self._download_image(result['url'], keyword)
-            
-        return result
+        if api_pref == 'google':
+            search = self._search_google(keyword)
+        elif api_pref == 'brave':
+            search = self._search_brave(keyword)
+        else:
+            return {'success': False, 'message': f"API preferida '{api_pref}' no soportada.", 'filename': ''}
+
+        if not search.get('success'):
+            return search
+
+        urls = list(search.get('urls', []))
+        random.shuffle(urls)
+
+        existing_hashes = self._existing_hashes()
+        last_message = f"No se encontraron imágenes nuevas para '{keyword}' (todas duplicadas)."
+
+        for url in urls:
+            result = self._download_image(url, keyword, existing_hashes)
+            if result.get('success'):
+                return result
+            last_message = result.get('message', last_message)
+            if result.get('duplicate'):
+                # Try the next candidate; known-duplicate shouldn't fail the whole run.
+                continue
+
+        return {'success': False, 'message': last_message, 'filename': ''}
+
+    def _existing_hashes(self):
+        """SHA1 digests of every file currently in the download dir.
+
+        Used to skip re-downloading identical images even if the URL / filename
+        differ. Files are small (wallpapers) and the folder is pruned by
+        cleanup_old_files, so hashing on each run is cheap.
+        """
+        hashes = set()
+        try:
+            for f in os.listdir(self.download_dir):
+                path = os.path.join(self.download_dir, f)
+                if not os.path.isfile(path):
+                    continue
+                try:
+                    h = hashlib.sha1()
+                    with open(path, 'rb') as fp:
+                        for chunk in iter(lambda: fp.read(65536), b''):
+                            h.update(chunk)
+                    hashes.add(h.hexdigest())
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return hashes
 
     def _search_google(self, query):
         api_key = self.config.get('auth.google_api_key', '').strip()
@@ -81,7 +120,7 @@ class DownloadEngine:
                 high_res_items = [i for i in items if i.get('image', {}).get('width', 0) >= 1280]
 
             if high_res_items:
-                return {'success': True, 'url': random.choice(high_res_items)['link']}
+                return {'success': True, 'urls': [i['link'] for i in high_res_items]}
             else:
                 return {'success': False, 'message': f"No se encontraron imágenes en Full HD para '{query}'."}
         except Exception as e:
@@ -117,42 +156,57 @@ class DownloadEngine:
                 high_res_results = [r for r in results if r.get('properties', {}).get('width', 0) >= 1280]
 
             if high_res_results:
-                return {'success': True, 'url': random.choice(high_res_results)['properties']['url']}
+                return {'success': True, 'urls': [r['properties']['url'] for r in high_res_results]}
             else:
                 return {'success': False, 'message': f"No se encontraron imágenes en Full HD para '{query}'."}
         except Exception as e:
             return {'success': False, 'message': f"Fallo de red: {e}"}
 
-    def _download_image(self, url, keyword):
+    def _download_image(self, url, keyword, existing_hashes=None):
         try:
             # Fake latest Brave browser user agent
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
             }
             r = requests.get(url, headers=headers, stream=True, timeout=15)
-            if r.status_code == 200:
-                content_type = r.headers.get('Content-Type', '')
-                if not content_type.startswith('image/'):
-                    return {'success': False, 'message': f"La URL entregó {content_type} en lugar de una imagen."}
-                    
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                clean_keyword = "".join(x for x in keyword if x.isalnum() or x in " -_").strip()
-                ext = os.path.splitext(urlparse(url).path)[1].lower()
-                
-                if ext not in ['.jpg', '.jpeg', '.png', '.bmp']: 
-                    ext = ".jpg" 
-                
-                filename = f"{timestamp}_{clean_keyword}{ext}"
-                filepath = os.path.join(self.download_dir, filename)
-                
-                with open(filepath, 'wb') as f:
-                    for chunk in r.iter_content(1024):
-                        f.write(chunk)
-                
-                self.cleanup_old_files()
-                return {'success': True, 'message': 'Descarga completada', 'filename': filename, 'path': filepath}
-            else:
+            if r.status_code != 200:
                 return {'success': False, 'message': f"El servidor de la imagen rechazó la conexión (HTTP {r.status_code})."}
+
+            content_type = r.headers.get('Content-Type', '')
+            if not content_type.startswith('image/'):
+                return {'success': False, 'message': f"La URL entregó {content_type} en lugar de una imagen."}
+
+            # Read the full body into memory so we can hash before committing to disk.
+            # Wallpaper images are small enough that this is cheaper than writing and
+            # deleting duplicates.
+            data = r.content
+            digest = hashlib.sha1(data).hexdigest()
+
+            if existing_hashes is not None and digest in existing_hashes:
+                return {
+                    'success': False,
+                    'duplicate': True,
+                    'message': f"Imagen duplicada ({digest[:8]}), ya está descargada."
+                }
+
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            clean_keyword = "".join(x for x in keyword if x.isalnum() or x in " -_").strip()
+            ext = os.path.splitext(urlparse(url).path)[1].lower()
+
+            if ext not in ['.jpg', '.jpeg', '.png', '.bmp']:
+                ext = ".jpg"
+
+            filename = f"{timestamp}_{clean_keyword}_{digest[:16]}{ext}"
+            filepath = os.path.join(self.download_dir, filename)
+
+            with open(filepath, 'wb') as f:
+                f.write(data)
+
+            if existing_hashes is not None:
+                existing_hashes.add(digest)
+
+            self.cleanup_old_files()
+            return {'success': True, 'message': 'Descarga completada', 'filename': filename, 'path': filepath}
         except Exception as e:
             return {'success': False, 'message': f"Error al descargar imagen: {e}"}
 

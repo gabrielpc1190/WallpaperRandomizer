@@ -45,9 +45,25 @@ if (-not (Test-Path $InstallDir)) {
     New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 }
 
-# 3. Copiar archivos necesarios
+# 3. Detener instancia previa si esta corriendo (bloquea el .exe)
+$running = Get-Process -Name "main" -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $ExeTarget }
+if ($running) {
+    Write-Host "[*] Deteniendo instancia previa de $AppName..." -ForegroundColor Yellow
+    $running | Stop-Process -Force -ErrorAction SilentlyContinue
+    # Espera breve para que Windows libere el handle del archivo
+    Start-Sleep -Milliseconds 500
+}
+
+# 4. Copiar archivos necesarios
 Write-Host "[*] Copiando archivos del programa..."
-Copy-Item -Path $ExeSource -Destination $ExeTarget -Force
+try {
+    Copy-Item -Path $ExeSource -Destination $ExeTarget -Force -ErrorAction Stop
+} catch {
+    Write-Host "[X] ERROR: No se pudo copiar main.exe. Cierra la aplicacion desde la bandeja del sistema y vuelve a intentar." -ForegroundColor Red
+    Write-Host "    Detalle: $($_.Exception.Message)" -ForegroundColor Red
+    Pause
+    exit 1
+}
 Copy-Item -Path ".\W.ico" -Destination "$InstallDir\W.ico" -Force -ErrorAction SilentlyContinue
 
 # Preservar configuraciones previas (Evitar sobrescribir si el usuario esta actualizando)
