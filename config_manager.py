@@ -25,9 +25,18 @@ class ConfigManager:
             },
             "paths": {
                 "download_dir": "DownloadedWallpapers",
-                "keywords_file": "search_keywords.txt"
+                "keywords_file": "search_keywords.txt",
+                "google_photos_dir": "GooglePhotosWallpapers"
             },
-            "api_preference": "google"
+            "api_preference": "google",
+            "source": "internet",
+            "google_photos": {
+                "photos_per_day": 19,
+                "start_hour": 8,
+                "end_hour": 22,
+                "chrome_debug_port": 9222,
+                "account_index": None
+            }
         }
 
     def load(self):
@@ -77,6 +86,8 @@ class ConfigManager:
 
     def is_first_run(self):
         """Returns True if API keys are still placeholders or empty."""
+        if self.get('source') == 'google_photos':
+            return False
         google_key = self.get('auth.google_api_key', '')
         brave_key = self.get('auth.brave_api_key', '')
         return (google_key in self.PLACEHOLDER_KEYS and

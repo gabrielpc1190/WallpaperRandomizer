@@ -1,4 +1,6 @@
 tests/
 Release/
 Release-src
-Wallpaper Randomizer.exe__pycache__/
+Wallpaper Randomizer.exe
+__pycache__/
+CLAUDE.local.md

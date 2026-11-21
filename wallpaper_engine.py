@@ -1,11 +1,36 @@
 import os
 import ctypes
+import datetime
 
 class WallpaperEngine:
     def __init__(self, config_manager):
         self.config = config_manager
         self.download_dir = self.config.get('paths.download_dir', 'DownloadedWallpapers')
         self.current_wallpaper_path = None
+        self.last_slot = None
+        self.photos = None  # GooglePhotosEngine, set by main when that source is active
+
+    def apply_scheduled(self):
+        """Google Photos: change only when the 15-min slot changes, within the day window."""
+        images = self.photos.todays_images()
+        now = datetime.datetime.now()
+        start = self.config.get('google_photos.start_hour', 8)
+        end = self.config.get('google_photos.end_hour', 22)
+        if not images or not (start <= now.hour < end):
+            return False
+        minutes = (now.hour - start) * 60 + now.minute
+        slot = minutes // self.config.get('intervals.rotate_minutes', 15)
+        if slot == self.last_slot and self.current_wallpaper_path in images:
+            return False
+        self.last_slot = slot
+        return self.apply_wallpaper(images[slot % len(images)])
+
+    def _step(self, delta):
+        images = self.photos.todays_images()
+        if not images:
+            return False
+        idx = images.index(self.current_wallpaper_path) if self.current_wallpaper_path in images else -1
+        return self.apply_wallpaper(images[(idx + delta) % len(images)])
 
     def _get_sorted_images(self):
         if not os.path.exists(self.download_dir):
@@ -18,6 +43,8 @@ class WallpaperEngine:
         return files
 
     def apply_next(self):
+        if self.photos:
+            return self._step(1)
         images = self._get_sorted_images()
         if not images:
             return False
@@ -27,6 +54,8 @@ class WallpaperEngine:
         return self.apply_wallpaper(target)
 
     def apply_previous(self):
+        if self.photos:
+            return self._step(-1)
         images = self._get_sorted_images()
         if not images or len(images) < 2:
             return False

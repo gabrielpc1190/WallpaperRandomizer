@@ -79,6 +79,19 @@ class SettingsWindow:
         ttk.Spinbox(tab_general, from_=1, to=365, textvariable=self.cleanup_days_var,
                      width=8).grid(row=3, column=1, sticky=tk.W, padx=10)
 
+        ttk.Label(tab_general, text="Fuente de fondos:").grid(row=4, column=0, sticky=tk.W, pady=(15, 5))
+        self.source_var = tk.StringVar(value=self.config.get('source', 'internet'))
+        ttk.Combobox(tab_general, textvariable=self.source_var, values=["internet", "google_photos"],
+                     state="readonly", width=15).grid(row=4, column=1, sticky=tk.W, padx=10, pady=(15, 5))
+
+        ttk.Label(tab_general, text="Google Fotos: fotos por día:").grid(row=5, column=0, sticky=tk.W, pady=5)
+        self.photos_per_day_var = tk.IntVar(value=self.config.get('google_photos.photos_per_day', 19))
+        ttk.Spinbox(tab_general, from_=1, to=200, textvariable=self.photos_per_day_var,
+                     width=8).grid(row=5, column=1, sticky=tk.W, padx=10)
+        ttk.Label(tab_general, text="Google Fotos usa la sesión del Chrome abierto con puerto de depuración\n"
+                                    "y rota de 8 a 22 h según «Rotar fondo cada».",
+                  foreground="gray").grid(row=6, column=0, columnspan=2, sticky=tk.W, pady=5)
+
         # === Tab 2: API Keys ===
         tab_api = ttk.Frame(notebook, padding=15)
         notebook.add(tab_api, text="  API Keys  ")
@@ -220,6 +233,8 @@ class SettingsWindow:
         self.config.set('intervals.download_minutes', self.download_interval_var.get())
         self.config.set('intervals.rotate_minutes', self.rotate_interval_var.get())
         self.config.set('system.cleanup_days_old', self.cleanup_days_var.get())
+        self.config.set('source', self.source_var.get())
+        self.config.set('google_photos.photos_per_day', self.photos_per_day_var.get())
 
         google_key = self.google_key_var.get().strip()
         google_cx = self.google_cx_var.get().strip()

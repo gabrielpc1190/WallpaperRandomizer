@@ -1,7 +1,7 @@
 ---
 type: project
 title: WallpaperRandomizer
-description: "Randomizador de wallpapers."
+description: "Randomizador de wallpapers (internet o Google Fotos vía sesión de Chrome)."
 production: false
 status: active
 stack: [python]
